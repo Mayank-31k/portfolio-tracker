@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Tracker - Real-Time Investment Dashboard</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <h1>Portfolio Tracker</h1>
+                    <span class="live-badge">
+                        <span class="pulse"></span>
+                        LIVE
+                    </span>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn-reset" id="resetAccountBtn" title="Reset Account to $10,000">
+                        <i class="fas fa-redo"></i> Reset Account
+                    </button>
+                    <button class="icon-btn" id="refreshBtn" title="Refresh Prices">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="icon-btn" id="darkModeToggle" title="Toggle Dark Mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Summary Cards -->
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="card-icon teal">
+                        <i class="fas fa-piggy-bank"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Cash Balance</p>
+                        <h2 class="card-value" id="cashBalance">$10,000.00</h2>
+                        <p class="card-desc">Available to trade</p>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-icon blue">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Total Account Value</p>
+                        <h2 class="card-value" id="accountValue">$10,000.00</h2>
+                        <p class="card-change" id="accountChange">+$0.00 (0.00%)</p>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-icon purple">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Portfolio Value</p>
+                        <h2 class="card-value" id="totalValue">$0.00</h2>
+                        <p class="card-change" id="totalChange">+$0.00 (0.00%)</p>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-icon green">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Total P&L</p>
+                        <h2 class="card-value" id="totalPnL">$0.00</h2>
+                        <p class="card-change" id="pnlPercent">0.00%</p>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-icon orange">
+                        <i class="fas fa-briefcase"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Positions</p>
+                        <h2 class="card-value" id="numPositions">0</h2>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="card-icon red">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-label">Cost Basis</p>
+                        <h2 class="card-value" id="costBasis">$0.00</h2>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Position Section -->
+            <div class="action-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-plus-circle"></i> Add Position</h3>
+                </div>
+                <div class="panel-content">
+                    <form id="addPositionForm" class="add-position-form">
+                        <div class="form-group">
+                            <label for="tickerInput">
+                                <i class="fas fa-search"></i> Ticker Symbol
+                            </label>
+                            <div class="search-container">
+                                <input type="text" id="tickerInput" placeholder="e.g., AAPL, GOOGL, MSFT" autocomplete="off" required>
+                                <div class="search-results" id="searchResults"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="quantityInput">
+                                    <i class="fas fa-layer-group"></i> Quantity
+                                </label>
+                                <input type="number" id="quantityInput" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="priceInput">
+                                    <i class="fas fa-dollar-sign"></i> Price per Share
+                                </label>
+                                <input type="number" id="priceInput" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-shopping-cart"></i> Buy Position
+                            </button>
+                            <div class="popular-stocks">
+                                <p>Popular: </p>
+                                <button type="button" class="chip" onclick="setTicker('AAPL')">AAPL</button>
+                                <button type="button" class="chip" onclick="setTicker('GOOGL')">GOOGL</button>
+                                <button type="button" class="chip" onclick="setTicker('MSFT')">MSFT</button>
+                                <button type="button" class="chip" onclick="setTicker('NVDA')">NVDA</button>
+                                <button type="button" class="chip" onclick="setTicker('SPY')">SPY</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fas fa-chart-line"></i> Portfolio Value History</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="portfolioChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fas fa-chart-pie"></i> Asset Allocation</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Section -->
+            <div class="analytics-section">
+                <div class="panel-header">
+                    <h3><i class="fas fa-brain"></i> Advanced Analytics</h3>
+                </div>
+                <div class="analytics-grid">
+                    <div class="metric-card">
+                        <i class="fas fa-chart-area metric-icon"></i>
+                        <p class="metric-label">Sharpe Ratio</p>
+                        <h3 class="metric-value" id="sharpeRatio">0.00</h3>
+                        <p class="metric-desc">Risk-adjusted return</p>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-wave-square metric-icon"></i>
+                        <p class="metric-label">Volatility</p>
+                        <h3 class="metric-value" id="volatility">0.00%</h3>
+                        <p class="metric-desc">Price fluctuation</p>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-arrow-trend-down metric-icon"></i>
+                        <p class="metric-label">Max Drawdown</p>
+                        <h3 class="metric-value" id="maxDrawdown">0.00%</h3>
+                        <p class="metric-desc">Largest peak-to-trough</p>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-dna metric-icon"></i>
+                        <p class="metric-label">Beta</p>
+                        <h3 class="metric-value" id="beta">0.00</h3>
+                        <p class="metric-desc">Market correlation</p>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-rocket metric-icon"></i>
+                        <p class="metric-label">Alpha</p>
+                        <h3 class="metric-value" id="alpha">0.00%</h3>
+                        <p class="metric-desc">Excess return</p>
+                    </div>
+                    <div class="metric-card">
+                        <i class="fas fa-shield-alt metric-icon"></i>
+                        <p class="metric-label">VaR (95%)</p>
+                        <h3 class="metric-value" id="var95">0.00%</h3>
+                        <p class="metric-desc">Value at Risk</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holdings Table -->
+            <div class="holdings-section">
+                <div class="panel-header">
+                    <h3><i class="fas fa-folder-open"></i> Portfolio Holdings</h3>
+                </div>
+                <div class="table-container">
+                    <table class="holdings-table" id="holdingsTable">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Quantity</th>
+                                <th>Entry Price</th>
+                                <th>Current Price</th>
+                                <th>Cost Basis</th>
+                                <th>Current Value</th>
+                                <th>P&L</th>
+                                <th>P&L %</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdingsBody">
+                            <tr class="empty-state">
+                                <td colspan="9">
+                                    <i class="fas fa-inbox"></i>
+                                    <p>No positions yet. Add your first position above to get started!</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Transactions History -->
+            <div class="transactions-section">
+                <div class="panel-header">
+                    <h3><i class="fas fa-history"></i> Recent Transactions</h3>
+                </div>
+                <div class="table-container">
+                    <table class="transactions-table" id="transactionsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Ticker</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsBody">
+                            <tr class="empty-state">
+                                <td colspan="6">
+                                    <i class="fas fa-receipt"></i>
+                                    <p>No transactions yet</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Stock Details Modal -->
+    <div class="modal" id="stockDetailsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> Stock Details</h2>
+                <button class="modal-close" onclick="closeStockDetails()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="stockDetailsBody">
+                <div class="stock-details-loading">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeStockDetails()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="useStockForTrade()">
+                    <i class="fas fa-cart-plus"></i> Buy This Stock
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell Position Modal -->
+    <div class="modal" id="sellModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-hand-holding-usd"></i> Sell Position</h2>
+                <button class="modal-close" onclick="closeSellModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="sellPositionForm">
+                    <input type="hidden" id="sellTicker" value="">
+                    <div class="form-group">
+                        <label>Ticker: <strong id="sellTickerDisplay"></strong></label>
+                    </div>
+                    <div class="form-group">
+                        <label>Available Quantity: <strong id="sellAvailableQty">0</strong></label>
+                    </div>
+                    <div class="form-group">
+                        <label>Current Price: <strong id="sellCurrentPrice">$0.00</strong></label>
+                    </div>
+                    <div class="form-group">
+                        <label for="sellQuantity">
+                            <i class="fas fa-layer-group"></i> Quantity to Sell
+                        </label>
+                        <input type="number" id="sellQuantity" step="0.01" min="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Proceeds: <strong id="estimatedProceeds">$0.00</strong></label>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeSellModal()">Cancel</button>
+                        <button type="button" class="btn btn-warning" onclick="sellPartial()">
+                            <i class="fas fa-coins"></i> Sell Partial
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="sellAll()">
+                            <i class="fas fa-trash"></i> Sell All
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
